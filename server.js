@@ -45,6 +45,12 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// Drop old username index if it exists (run once on startup)
+User.collection.dropIndex('username_1').catch(() => {
+  // Index doesn't exist, that's fine
+  console.log('No username index to drop (expected)');
+});
+
 // Listing Schema
 const listingSchema = new mongoose.Schema({
   title: {
@@ -147,20 +153,26 @@ app.get('/', (req, res) => {
 // Register
 app.post('/api/register', async (req, res) => {
   try {
+    console.log('Registration attempt - Body:', { ...req.body, password: '***' });
+    
     const { email, password, name } = req.body;
 
     // Validation
     if (!email || !password || !name) {
+      console.log('Validation failed - missing fields');
       return res.status(400).json({ error: 'All fields are required' });
     }
 
     // Check if user already exists
+    console.log('Checking if user exists:', email);
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('User already exists:', email);
       return res.status(400).json({ error: 'User already exists' });
     }
 
     // Hash password
+    console.log('Hashing password...');
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
@@ -190,7 +202,12 @@ app.post('/api/register', async (req, res) => {
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    res.status(500).json({ 
+      error: 'Server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
