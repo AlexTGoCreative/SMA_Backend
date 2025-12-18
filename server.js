@@ -45,6 +45,65 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// Listing Schema
+const listingSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  monthlyRent: {
+    type: Number,
+    required: true,
+  },
+  propertyType: {
+    type: String,
+    enum: ['apartment', 'house', 'villa', 'cabin'],
+    default: 'apartment',
+  },
+  location: {
+    address: {
+      type: String,
+      required: true,
+    },
+    coordinates: {
+      latitude: {
+        type: Number,
+        required: true,
+      },
+      longitude: {
+        type: Number,
+        required: true,
+      },
+    },
+  },
+  images: [{
+    type: String, // Will store base64 or URLs
+  }],
+  amenities: [{
+    type: String,
+  }],
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'rented'],
+    default: 'active',
+  },
+});
+
+const Listing = mongoose.model('Listing', listingSchema);
+
 // Routes
 
 // Health check
@@ -173,6 +232,169 @@ app.get('/api/profile', verifyToken, async (req, res) => {
     res.json({ user });
   } catch (error) {
     console.error('Profile error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ===== LISTING ROUTES =====
+
+// Create a new listing (protected)
+app.post('/api/listings', verifyToken, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      monthlyRent,
+      propertyType,
+      location,
+      images,
+      amenities,
+    } = req.body;
+
+    // Validation
+    if (!title || !description || !monthlyRent || !location) {
+      return res.status(400).json({ error: 'All required fields must be filled' });
+    }
+
+    if (!location.address || !location.coordinates || 
+        !location.coordinates.latitude || !location.coordinates.longitude) {
+      return res.status(400).json({ error: 'Location with coordinates is required' });
+    }
+
+    // Create listing
+    const listing = new Listing({
+      title,
+      description,
+      monthlyRent: parseFloat(monthlyRent),
+      propertyType: propertyType || 'apartment',
+      location,
+      images: images || [],
+      amenities: amenities || [],
+      userId: req.userId,
+    });
+
+    await listing.save();
+
+    res.status(201).json({
+      message: 'Listing created successfully',
+      listing,
+    });
+  } catch (error) {
+    console.error('Create listing error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all listings (public)
+app.get('/api/listings', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = status ? { status } : { status: 'active' };
+    
+    const listings = await Listing.find(filter)
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.json({ listings });
+  } catch (error) {
+    console.error('Get listings error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get single listing by ID (public)
+app.get('/api/listings/:id', async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id)
+      .populate('userId', 'name email');
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    res.json({ listing });
+  } catch (error) {
+    console.error('Get listing error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user's own listings (protected)
+app.get('/api/my-listings', verifyToken, async (req, res) => {
+  try {
+    const listings = await Listing.find({ userId: req.userId })
+      .sort({ createdAt: -1 });
+
+    res.json({ listings });
+  } catch (error) {
+    console.error('Get my listings error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update listing (protected)
+app.put('/api/listings/:id', verifyToken, async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Check if user owns the listing
+    if (listing.userId.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized to update this listing' });
+    }
+
+    // Update fields
+    const allowedUpdates = [
+      'title',
+      'description',
+      'monthlyRent',
+      'propertyType',
+      'location',
+      'images',
+      'amenities',
+      'status',
+    ];
+
+    allowedUpdates.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        listing[field] = req.body[field];
+      }
+    });
+
+    await listing.save();
+
+    res.json({
+      message: 'Listing updated successfully',
+      listing,
+    });
+  } catch (error) {
+    console.error('Update listing error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete listing (protected)
+app.delete('/api/listings/:id', verifyToken, async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Check if user owns the listing
+    if (listing.userId.toString() !== req.userId) {
+      return res.status(403).json({ error: 'Not authorized to delete this listing' });
+    }
+
+    await Listing.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Listing deleted successfully' });
+  } catch (error) {
+    console.error('Delete listing error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
