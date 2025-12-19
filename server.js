@@ -138,6 +138,10 @@ const bidSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  phoneNumber: {
+    type: String,
+    default: '',
+  },
   status: {
     type: String,
     enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
@@ -465,7 +469,7 @@ app.delete('/api/listings/:id', verifyToken, async (req, res) => {
 // Create a new bid (protected)
 app.post('/api/bids', verifyToken, async (req, res) => {
   try {
-    const { listingId, amount, message } = req.body;
+    const { listingId, amount, message, phoneNumber } = req.body;
 
     // Validation
     if (!listingId || !amount) {
@@ -497,12 +501,13 @@ app.post('/api/bids', verifyToken, async (req, res) => {
       bidderId: req.userId,
       amount: parseFloat(amount),
       message: message || '',
+      phoneNumber: phoneNumber || '',
     });
 
     await bid.save();
 
     // Populate bidder info
-    await bid.populate('bidderId', 'name email');
+    await bid.populate('bidderId', 'name email phoneNumber');
     await bid.populate('listingId', 'title monthlyRent');
 
     res.status(201).json({
@@ -530,7 +535,7 @@ app.get('/api/listings/:id/bids', verifyToken, async (req, res) => {
     }
 
     const bids = await Bid.find({ listingId: req.params.id })
-      .populate('bidderId', 'name email')
+      .populate('bidderId', 'name email phoneNumber')
       .sort({ createdAt: -1 });
 
     res.json({ bids });
@@ -576,7 +581,7 @@ app.put('/api/bids/:id', verifyToken, async (req, res) => {
     bid.status = status;
     await bid.save();
 
-    await bid.populate('bidderId', 'name email');
+    await bid.populate('bidderId', 'name email phoneNumber');
 
     res.json({
       message: 'Bid updated successfully',
