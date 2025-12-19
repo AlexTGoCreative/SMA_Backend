@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  phoneNumber: {
+    type: String,
+    default: '',
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -92,6 +96,10 @@ const listingSchema = new mongoose.Schema({
   amenities: [{
     type: String,
   }],
+  phoneNumber: {
+    type: String,
+    default: '',
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -299,6 +307,7 @@ app.post('/api/listings', verifyToken, async (req, res) => {
       location,
       images,
       amenities,
+      phoneNumber,
     } = req.body;
 
     // Validation
@@ -320,6 +329,7 @@ app.post('/api/listings', verifyToken, async (req, res) => {
       location,
       images: images || [],
       amenities: amenities || [],
+      phoneNumber: phoneNumber || '',
       userId: req.userId,
     });
 
@@ -342,7 +352,7 @@ app.get('/api/listings', async (req, res) => {
     const filter = status ? { status } : { status: 'active' };
     
     const listings = await Listing.find(filter)
-      .populate('userId', 'name email')
+      .populate('userId', 'name email phoneNumber')
       .sort({ createdAt: -1 });
 
     res.json({ listings });
@@ -356,7 +366,7 @@ app.get('/api/listings', async (req, res) => {
 app.get('/api/listings/:id', async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id)
-      .populate('userId', 'name email');
+      .populate('userId', 'name email phoneNumber');
 
     if (!listing) {
       return res.status(404).json({ error: 'Listing not found' });
@@ -405,6 +415,7 @@ app.put('/api/listings/:id', verifyToken, async (req, res) => {
       'location',
       'images',
       'amenities',
+      'phoneNumber',
       'status',
     ];
 
