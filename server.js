@@ -471,6 +471,14 @@ app.post('/api/bids', verifyToken, async (req, res) => {
   try {
     const { listingId, amount, message, phoneNumber } = req.body;
 
+    console.log('📝 Creating bid with data:', { 
+      listingId, 
+      amount, 
+      message, 
+      phoneNumber,
+      userId: req.userId 
+    });
+
     // Validation
     if (!listingId || !amount) {
       return res.status(400).json({ error: 'Listing ID and amount are required' });
@@ -504,7 +512,9 @@ app.post('/api/bids', verifyToken, async (req, res) => {
       phoneNumber: phoneNumber || '',
     });
 
+    console.log('💾 Saving bid:', bid);
     await bid.save();
+    console.log('✅ Bid saved with ID:', bid._id);
 
     // Populate bidder info
     await bid.populate('bidderId', 'name email phoneNumber');
@@ -537,6 +547,13 @@ app.get('/api/listings/:id/bids', verifyToken, async (req, res) => {
     const bids = await Bid.find({ listingId: req.params.id })
       .populate('bidderId', 'name email phoneNumber')
       .sort({ createdAt: -1 });
+
+    console.log('📋 Fetching bids for listing:', req.params.id);
+    console.log('📋 Found bids:', bids.length);
+    if (bids.length > 0) {
+      console.log('📋 First bid phoneNumber:', bids[0].phoneNumber);
+      console.log('📋 First bid bidderId.phoneNumber:', bids[0].bidderId?.phoneNumber);
+    }
 
     res.json({ bids });
   } catch (error) {
